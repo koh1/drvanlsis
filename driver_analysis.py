@@ -27,8 +27,8 @@ def plot_user_paths(data, filename):
     plt.clf()
 
 def plot_stats_data(data, filename):
-    for k,v in data.items():
-        plt.plot(v['v_mean'], v['a_mean'])
+    df = pd.DataFrame(stats_data)
+    plt.hist(df['v_mean'], bins=30)
     plt.savefig(filename)
     plt.clf()
 
@@ -44,9 +44,9 @@ def load_user_paths(src_dir=""):
             data[item_name] = pd.read_csv("%s/%s" % (src_dir, f))
     return data
 
-def make_velocity_data(paths_data, stats_data):
+def make_velocity_data(paths_data, s_data):
     v_data = {}
-    stats_data = {}
+    stats_data = s_data
     for k,v in paths_data.items():
         prev_xy = [0,0]
         time_index = 0
@@ -70,31 +70,45 @@ def make_velocity_data(paths_data, stats_data):
             'v_median': v_data[k]['velocity'].median(),
             'v_std': v_data[k]['velocity'].std()
         }
-
-
     return (v_data,stats_data)
  
-def make_acceleration_data(v_data, stats_data):
+def make_acceleration_data(v_data, s_data):
     a_data = {}
+    stats_data = s_data
     for k,v in v_data.items():
         prev_v = 0
         time_index = 0
+        accel_array = []
+        decel_array = []
         aarray = []
         for r in v.iterrows():
             dv = r[1]['velocity'] - prev_v
+            if dv >= 0:
+                accel_array.append([time_index, np.abs(dv)])
+            else:
+                decel_array.append([time_index, np.abs(dv)])
             aarray.append([time_index, dv])
             prev_v = r[1]['velocity']
             
             time_index += 1
         
         a_data[k] = pd.DataFrame(aarray, columns=['time', 'acceleration'])
-        stats_data[k]['a_max'] = a_data[k]['acceleration'].max()
-        stats_data[k]['a_min'] = a_data[k]['acceleration'].min()
-        stats_data[k]['a_mean'] = a_data[k]['acceleration'].mean()
-        stats_data[k]['a_median'] = a_data[k]['acceleration'].median()
-        stats_data[k]['a_std'] = a_data[k]['acceleration'].std()
+        
+        stats_data[k]['accel_max'] = a_data[k][a_data[k]['acceleration'] >= 0]['acceleration'].max()
+        stats_data[k]['accel_min'] = a_data[k][a_data[k]['acceleration'] >= 0]['acceleration'].min()
+        stats_data[k]['accel_mean'] = a_data[k][a_data[k]['acceleration'] >= 0]['acceleration'].mean()
+        stats_data[k]['accel_median'] = a_data[k][a_data[k]['acceleration'] >= 0]['acceleration'].median()
+        stats_data[k]['accel_std'] = a_data[k][a_data[k]['acceleration'] >= 0]['acceleration'].std()
+
+        stats_data[k]['decel_max'] = np.abs(a_data[k][a_data[k]['acceleration'] < 0]['acceleration']).max()
+        stats_data[k]['decel_min'] = np.abs(a_data[k][a_data[k]['acceleration'] < 0]['acceleration']).min()
+        stats_data[k]['decel_mean'] = np.abs(a_data[k][a_data[k]['acceleration'] < 0]['acceleration']).mean()
+        stats_data[k]['decel_median'] = np.abs(a_data[k][a_data[k]['acceleration'] < 0]['acceleration']).median()
+        stats_data[k]['decel_std'] = np.abs(a_data[k][a_data[k]['acceleration'] < 0]['acceleration']).std()
 
     return (a_data, stats_data)
+
+
 
 if __name__ == '__main__':
     p = sys.argv
@@ -103,12 +117,14 @@ if __name__ == '__main__':
         sys.exit(0)
     data = load_user_paths(p[1])
     plot_user_paths(data, "%s/%s_paths.png" % (p[1],p[1].split('/')[-1]))
-
     stats_data = {}
     vdata, stats_data = make_velocity_data(data, stats_data)
+
+
     plot_user_velocity(vdata, "%s/%s_velocity.png" % (p[1], p[1].split('/')[-1]))
 
     adata, stats_data = make_acceleration_data(vdata, stats_data)
+#    print stats_data
     plot_user_acceleration(adata, "%s/%s_acceleration.png" % (p[1], p[1].split('/')[-1]))
 
-    plot_stats_data(stats_data, "%s/%s_stats.png" % (p[1], p[1].split('/')[-1]))
+#    plot_stats_data(stats_data, "%s/%s_stats.png" % (p[1], p[1].split('/')[-1]))
